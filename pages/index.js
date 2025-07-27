@@ -92,23 +92,23 @@ export default function Home() {
     const formData = new FormData(form)
 
     try {
-      // Check if we're running in Netlify environment (has /__forms.html endpoint)
+      // Check if we're running in Netlify environment (has Functions)
       // or development mode (use Next.js API route)
       const isNetlifyEnvironment = window.location.hostname.includes('netlify') || 
-                                  process.env.NODE_ENV === 'production'
+                                  window.location.port === '8888'
       
       let response
+      const formObject = Object.fromEntries(formData)
       
       if (isNetlifyEnvironment) {
-        // Use Netlify Forms
-        response = await fetch('/__forms.html', {
+        // Use Netlify Function with database
+        response = await fetch('/api/submit-review', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams(formData).toString()
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formObject)
         })
       } else {
-        // Use Next.js API route for development
-        const formObject = Object.fromEntries(formData)
+        // Use Next.js API route for development (also with database if available)
         response = await fetch('/api/forms', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -117,16 +117,20 @@ export default function Home() {
       }
       
       if (response.ok) {
+        const result = await response.json()
+        console.log('Submission successful:', result)
+        
         setFormStatus('success')
         form.reset() // Clear the form
         
-        // Refresh submissions after successful submit
+        // Refresh submissions immediately to show the new submission
         setTimeout(() => {
           fetchSubmissions()
           setFormStatus('')
-        }, 2000)
+        }, 1000)
       } else {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorData = await response.json()
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
       }
       
     } catch (error) {
@@ -212,7 +216,7 @@ export default function Home() {
 
           {error && (
             <div className="status-message error">
-              ❌ Error loading submissions: {error}
+              ❌ {error}
             </div>
           )}
 
@@ -246,7 +250,12 @@ export default function Home() {
           ) : (
             <div className="empty-message">
               {error ? 
-                'Unable to load submissions. This feature works best when deployed to Netlify.' :
+                <div>
+                  <p>Movie reviews will be stored in the Neon database once deployed to Netlify.</p>
+                  <p style={{fontSize: '0.9em', color: '#666', marginTop: '0.5rem'}}>
+                    <strong>Current status:</strong> {error}
+                  </p>
+                </div> :
                 'No movie reviews submitted yet. Be the first to submit a review!'
               }
             </div>

@@ -1,4 +1,5 @@
 import type { Context, Config } from "@netlify/functions";
+import { neon } from '@netlify/neon';
 
 export default async (req: Request, context: Context) => {
   // Only allow GET requests
@@ -10,126 +11,43 @@ export default async (req: Request, context: Context) => {
   }
 
   try {
-    // Get the site ID from environment variables or Netlify context
-    const siteId = process.env.NETLIFY_SITE_ID || context.site?.id;
-    const accessToken = process.env.NETLIFY_ACCESS_TOKEN;
+    // Initialize Neon database connection
+    const sql = neon(); // automatically uses env NETLIFY_DATABASE_URL
     
-    console.log('Environment check:', {
-      siteId: siteId ? 'Found' : 'Missing',
-      accessToken: accessToken ? 'Found' : 'Missing',
-      contextSiteId: context.site?.id ? 'Found' : 'Missing'
-    });
+    console.log('Connecting to Neon database...');
     
-    if (!siteId) {
-      console.error('Site ID not found in environment or context');
-      return new Response(JSON.stringify({ 
-        error: 'Site ID not found',
-        debug: {
-          envSiteId: !!process.env.NETLIFY_SITE_ID,
-          contextSiteId: !!context.site?.id
-        }
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    if (!accessToken) {
-      console.error('Access token not found in environment');
-      return new Response(JSON.stringify({ 
-        error: 'Access token not configured. Please set NETLIFY_ACCESS_TOKEN environment variable.' 
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    const apiUrl = `https://api.netlify.com/api/v1/sites/${siteId}/forms/movie-review/submissions`;
-    console.log('Making API request to:', apiUrl);
-
-    // Fetch form submissions from Netlify API
-    const response = await fetch(apiUrl, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    console.log('API Response status:', response.status, response.statusText);
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        // Form not found - likely no submissions yet or form doesn't exist
-        console.log('Form not found, checking all forms on site...');
-        
-        try {
-          // Try to list all forms to see what's available
-          const formsListResponse = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}/forms`, {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            }
-          });
-          
-          if (formsListResponse.ok) {
-            const allForms = await formsListResponse.json();
-            console.log('Available forms:', allForms.map((f: any) => f.name));
-            
-            return new Response(JSON.stringify({
-              message: 'No submissions found yet',
-              info: 'The movie-review form will appear here after the first submission.',
-              availableForms: allForms.map((f: any) => ({ name: f.name, submissions: f.submission_count })),
-              submissions: []
-            }), {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' }
-            });
-          }
-        } catch (formsError) {
-          console.error('Error fetching forms list:', formsError);
-        }
-        
-        // If we can't get the forms list, just return an empty state
-        return new Response(JSON.stringify({
-          message: 'No submissions found yet',
-          info: 'The movie-review form will appear here after the first submission.',
-          submissions: []
-        }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
-      
-      // Other errors
-      const errorText = await response.text();
-      console.error('Netlify API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText
-      });
-      
-      return new Response(JSON.stringify({ 
-        error: `Netlify API error: ${response.status} ${response.statusText}`,
-        details: errorText
-      }), {
-        status: response.status,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    const submissions = await response.json();
-    console.log('Successfully fetched submissions:', submissions.length, 'items');
+    // Create table if it doesn't exist
+    await sql`
+      CREATE TABLE IF NOT EXISTS movie_reviews (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        movie_name VARCHAR(255) NOT NULL,
+        movie_review TEXT NOT NULL,
+        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
     
-    // Transform the data to match our frontend expectations
-    const transformedSubmissions = submissions.map((submission: any) => ({
-      id: submission.id,
-      name: submission.data?.name || 'Unknown',
-      movieName: submission.data?.['movie-name'] || 'Unknown',
-      movieReview: submission.data?.['movie-review'] || 'No review provided',
-      submittedAt: new Date(submission.created_at).toLocaleDateString()
+    console.log('Table created/verified successfully');
+    
+    // Fetch all movie reviews from the database
+    const reviews = await sql`
+      SELECT id, name, movie_name, movie_review, submitted_at 
+      FROM movie_reviews 
+      ORDER BY submitted_at DESC
+    `;
+    
+    console.log(`Successfully fetched ${reviews.length} reviews from database`);
+    
+    // Transform the data to match frontend expectations
+    const transformedReviews = reviews.map((review: any) => ({
+      id: review.id,
+      name: review.name,
+      movieName: review.movie_name,
+      movieReview: review.movie_review,
+      submittedAt: new Date(review.submitted_at).toLocaleDateString()
     }));
 
-    return new Response(JSON.stringify(transformedSubmissions), {
+    return new Response(JSON.stringify(transformedReviews), {
       status: 200,
       headers: { 
         'Content-Type': 'application/json',
@@ -138,10 +56,11 @@ export default async (req: Request, context: Context) => {
     });
 
   } catch (error) {
-    console.error('Error fetching form submissions:', error);
+    console.error('Database error:', error);
     return new Response(JSON.stringify({ 
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Database error',
+      details: error instanceof Error ? error.message : 'Unknown database error',
+      message: 'Unable to fetch movie reviews from database'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

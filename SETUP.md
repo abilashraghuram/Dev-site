@@ -42,12 +42,34 @@ netlify dev
 ### Production Deploy:
 Push your changes to your connected Git repository, and Netlify will automatically deploy.
 
-## How It Works
+## How It Works (Database Version)
 
-- The `/api/form-submissions` endpoint fetches all submissions from your Netlify form
-- The frontend automatically loads and displays these submissions in a table
-- New submissions appear after clicking the refresh button or submitting a new review
-- All data comes directly from Netlify Forms (no local storage)
+This app now uses **Neon Database** for persistent storage of movie reviews:
+
+- Form submissions are saved directly to your Neon database
+- The `/api/form-submissions` endpoint fetches reviews from the database
+- The `/api/submit-review` endpoint saves new reviews to the database
+- All data persists permanently and is immediately available
+- Works seamlessly in both development and production environments
+
+### Database Schema
+
+The app automatically creates a `movie_reviews` table with:
+- `id` - Unique identifier
+- `name` - Reviewer's name  
+- `movie_name` - Name of the movie
+- `movie_review` - The review text
+- `submitted_at` - Timestamp when submitted
+
+## Database Setup
+
+The Neon database is already configured for your Netlify site. The environment variables (`NETLIFY_DATABASE_URL`) will be automatically available when deployed to Netlify.
+
+### For Local Development:
+- The database functionality requires deployment to Netlify
+- Local development will show a message indicating database status
+- Form submissions work but may not persist locally without database connection
+- Full functionality is available once deployed
 
 ## Development Modes
 
