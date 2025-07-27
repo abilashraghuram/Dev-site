@@ -85,11 +85,11 @@ export default function Home() {
   }, [])
 
   const handleSubmit = async (event) => {
-    event.preventDefault()
     setFormStatus('submitting')
 
     const form = event.target
     const formData = new FormData(form)
+    const formObject = Object.fromEntries(formData)
 
     try {
       // Check if we're running in Netlify environment (has Functions)
@@ -97,8 +97,10 @@ export default function Home() {
       const isNetlifyEnvironment = window.location.hostname.includes('netlify') || 
                                   window.location.port === '8888'
       
+      // Submit to database API (custom functionality) - prevent default for this
+      event.preventDefault()
+      
       let response
-      const formObject = Object.fromEntries(formData)
       
       if (isNetlifyEnvironment) {
         // Use Netlify Function with database
@@ -118,7 +120,38 @@ export default function Home() {
       
       if (response.ok) {
         const result = await response.json()
-        console.log('Submission successful:', result)
+        console.log('Database submission successful:', result)
+        
+        // Now submit to Netlify Forms (native form submission)
+        // Create a hidden iframe to submit to Netlify without redirecting
+        const iframe = document.createElement('iframe')
+        iframe.style.display = 'none'
+        document.body.appendChild(iframe)
+        
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document
+        const netlifyForm = document.createElement('form')
+        netlifyForm.method = 'POST'
+        netlifyForm.name = 'movie-review'
+        netlifyForm.setAttribute('data-netlify', 'true')
+        
+        // Add all form fields to the netlify form
+        Object.entries(formObject).forEach(([key, value]) => {
+          const input = document.createElement('input')
+          input.type = 'hidden'
+          input.name = key
+          input.value = value
+          netlifyForm.appendChild(input)
+        })
+        
+        iframeDoc.body.appendChild(netlifyForm)
+        netlifyForm.submit()
+        
+        // Clean up iframe after a short delay
+        setTimeout(() => {
+          document.body.removeChild(iframe)
+        }, 2000)
+        
+        console.log('Netlify Forms submission successful')
         
         setFormStatus('success')
         form.reset() // Clear the form
@@ -169,7 +202,7 @@ export default function Home() {
             </div>
           )}
           
-          <form name="movie-review" method="POST" onSubmit={handleSubmit}>
+          <form name="movie-review" method="POST" data-netlify="true" onSubmit={handleSubmit}>
             <input type="hidden" name="form-name" value="movie-review" />
             
             <p>
