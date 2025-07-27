@@ -85,6 +85,7 @@ export default function Home() {
   }, [])
 
   const handleSubmit = async (event) => {
+    event.preventDefault() // Always prevent default for AJAX handling
     setFormStatus('submitting')
 
     const form = event.target
@@ -92,79 +93,56 @@ export default function Home() {
     const formObject = Object.fromEntries(formData)
 
     try {
-      // Check if we're running in Netlify environment (has Functions)
-      // or development mode (use Next.js API route)
+      // First submit to Netlify Forms using the recommended AJAX approach
+      const netlifyResponse = await fetch("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(formData).toString()
+      })
+      
+      if (!netlifyResponse.ok) {
+        throw new Error(`Netlify Forms submission failed: ${netlifyResponse.status}`)
+      }
+      
+      console.log('Netlify Forms submission successful')
+      
+      // Then submit to database API (custom functionality)
       const isNetlifyEnvironment = window.location.hostname.includes('netlify') || 
                                   window.location.port === '8888'
       
-      // Submit to database API (custom functionality) - prevent default for this
-      event.preventDefault()
-      
-      let response
+      let dbResponse
       
       if (isNetlifyEnvironment) {
         // Use Netlify Function with database
-        response = await fetch('/api/submit-review', {
+        dbResponse = await fetch('/api/submit-review', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formObject)
         })
       } else {
         // Use Next.js API route for development (also with database if available)
-        response = await fetch('/api/forms', {
+        dbResponse = await fetch('/api/forms', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formObject)
         })
       }
       
-      if (response.ok) {
-        const result = await response.json()
+      if (dbResponse.ok) {
+        const result = await dbResponse.json()
         console.log('Database submission successful:', result)
-        
-        // Now submit to Netlify Forms (native form submission)
-        // Create a hidden iframe to submit to Netlify without redirecting
-        const iframe = document.createElement('iframe')
-        iframe.style.display = 'none'
-        document.body.appendChild(iframe)
-        
-        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document
-        const netlifyForm = document.createElement('form')
-        netlifyForm.method = 'POST'
-        netlifyForm.name = 'movie-review'
-        netlifyForm.setAttribute('data-netlify', 'true')
-        
-        // Add all form fields to the netlify form
-        Object.entries(formObject).forEach(([key, value]) => {
-          const input = document.createElement('input')
-          input.type = 'hidden'
-          input.name = key
-          input.value = value
-          netlifyForm.appendChild(input)
-        })
-        
-        iframeDoc.body.appendChild(netlifyForm)
-        netlifyForm.submit()
-        
-        // Clean up iframe after a short delay
-        setTimeout(() => {
-          document.body.removeChild(iframe)
-        }, 2000)
-        
-        console.log('Netlify Forms submission successful')
-        
-        setFormStatus('success')
-        form.reset() // Clear the form
-        
-        // Refresh submissions immediately to show the new submission
-        setTimeout(() => {
-          fetchSubmissions()
-          setFormStatus('')
-        }, 1000)
       } else {
-        const errorData = await response.json()
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+        console.warn('Database submission failed, but Netlify Forms submission succeeded')
       }
+      
+      setFormStatus('success')
+      form.reset() // Clear the form
+      
+      // Refresh submissions after a short delay
+      setTimeout(() => {
+        fetchSubmissions()
+        setFormStatus('')
+      }, 1000)
       
     } catch (error) {
       console.error('Form submission error:', error)
