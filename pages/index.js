@@ -235,6 +235,7 @@ export default function Home() {
         </div>
 
         {/* Submissions Table */}
+        {/*
         <div className="submissions-container">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
             <h2>Movie Reviews ({submissions.length})</h2>
@@ -294,6 +295,7 @@ export default function Home() {
             </div>
           )}
         </div>
+        */}
       </main>
 
       <Footer />
