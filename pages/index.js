@@ -161,6 +161,19 @@ export default function Home() {
       </Head>
 
       <main>
+        {/* Hidden form for Netlify build-time detection */}
+        <form 
+          name="movie-review" 
+          data-netlify="true" 
+          hidden
+          style={{ display: 'none' }}
+        >
+          <input type="hidden" name="form-name" value="movie-review" />
+          <input name="name" type="text" />
+          <input name="movie-name" type="text" />
+          <textarea name="movie-review"></textarea>
+        </form>
+
         <Header title="Review a Movie!!" />
         
         {/* Movie Review Form */}
