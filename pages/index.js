@@ -94,7 +94,7 @@ export default function Home() {
 
     try {
       // First submit to Netlify Forms using the recommended AJAX approach
-      const netlifyResponse = await fetch("/", {
+      const netlifyResponse = await fetch("/__forms.html", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams(formData).toString()
@@ -161,19 +161,6 @@ export default function Home() {
       </Head>
 
       <main>
-        {/* Hidden form for Netlify build-time detection */}
-        <form 
-          name="movie-review" 
-          data-netlify="true" 
-          hidden
-          style={{ display: 'none' }}
-        >
-          <input type="hidden" name="form-name" value="movie-review" />
-          <input name="name" type="text" />
-          <input name="movie-name" type="text" />
-          <textarea name="movie-review"></textarea>
-        </form>
-
         <Header title="Review a Movie!!" />
         
         {/* Movie Review Form */}
