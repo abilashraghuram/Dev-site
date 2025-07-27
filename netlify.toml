@@ -1,6 +1,11 @@
 [build]
-  command = "npm run build"
+  command = "npm ci && npm run build"
   publish = ".next"
+
+[build.environment]
+  NPM_FLAGS = "--prefer-offline --no-audit"
+  NODE_VERSION = "18"
+  YARN_ENABLED = "false"
 
 [functions]
   directory = "netlify/functions"
